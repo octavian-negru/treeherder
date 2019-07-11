@@ -1,17 +1,24 @@
 # Code imported from https://github.com/taskcluster/taskcluster/blob/32629c562f8d6f5a6b608a3141a8ee2e0984619f/services/treeherder/src/handler.js
+import asyncio
 import logging
+import os
 
 import jsonschema
 import slugid
 import taskcluster
+import taskcluster.aio
 import taskcluster_urls
 
 from treeherder.etl.schema import get_json_schema
-from treeherder.etl.taskcluster_pulse.artifact_links import addArtifactUploadedLinks
 from treeherder.etl.taskcluster_pulse.parse_route import parseRoute
 
 logger = logging.getLogger(__name__)
 root_url = "https://taskcluster.net"
+options = {"rootUrl": root_url}
+loop = asyncio.get_event_loop()
+session = taskcluster.aio.createSession(loop=loop)
+asyncQueue = taskcluster.aio.Queue(options, session=session)
+
 
 # Build a mapping from exchange name to task status
 EXCHANGE_EVENT_MAP = {
@@ -97,18 +104,13 @@ def validateTask(task):
     return True
 
 
-def fetchTask(taskId):
-    queue = taskcluster.Queue({"rootUrl": root_url})
-    return queue.task(taskId)
-
-
 # Listens for Task event messages and invokes the appropriate handler
 # for the type of message received.
 # Only messages that contain the properly formatted routing key and contains
 # treeherder job information in task.extra.treeherder are accepted
-def handleMessage(message, taskDefinition=None):
+async def handleMessage(message, taskDefinition=None):
     taskId = message["payload"]["status"]["taskId"]
-    task = fetchTask(taskId) if not taskDefinition else taskDefinition
+    task = (await asyncQueue.task(taskId)) if not taskDefinition else taskDefinition
     try:
         parsedRoute = parseRouteInfo("tc-treeherder", taskId, task["routes"], task)
     except PulseHandlerError as e:
@@ -130,15 +132,15 @@ def handleMessage(message, taskDefinition=None):
         # If the task run was created for an infrastructure rerun, then resolve
         # the previous run as retried.
         if runId > 0:
-            handleTaskRerun(parsedRoute, task, message["payload"])
+            await handleTaskRerun(parsedRoute, task, message["payload"])
 
         job = handleTaskPending(parsedRoute, task, message["payload"])
     elif taskType == "running":
         job = handleTaskRunning(parsedRoute, task, message["payload"])
     elif taskType in ("completed", "failed"):
-        job = handleTaskCompleted(parsedRoute, task, message["payload"])
+        job = await handleTaskCompleted(parsedRoute, task, message["payload"])
     elif taskType == "exception":
-        job = handleTaskException(parsedRoute, task, message["payload"])
+        job = await handleTaskException(parsedRoute, task, message["payload"])
 
     return job
 
@@ -225,7 +227,7 @@ def handleTaskPending(pushInfo, task, message):
     return buildMessage(pushInfo, task, message["runId"], message)
 
 
-def handleTaskRerun(pushInfo, task, message):
+async def handleTaskRerun(pushInfo, task, message):
     job = buildMessage(pushInfo, task, message["runId"]-1, message)
     job["state"] = "completed"
     job["result"] = "fail"
@@ -233,7 +235,7 @@ def handleTaskRerun(pushInfo, task, message):
     # reruns often have no logs, so in the interest of not linking to a 404'ing artifact,
     # don't include a link
     job["logs"] = []
-    job = addArtifactUploadedLinks(
+    job = await addArtifactUploadedLinks(
         message["status"]["taskId"],
         message["runId"]-1,
         job)
@@ -246,21 +248,21 @@ def handleTaskRunning(pushInfo, task, message):
     return job
 
 
-def handleTaskCompleted(pushInfo, task, message):
+async def handleTaskCompleted(pushInfo, task, message):
     jobRun = message["status"]["runs"][message["runId"]]
     job = buildMessage(pushInfo, task, message["runId"], message)
 
     job["timeStarted"] = jobRun["started"]
     job["timeCompleted"] = jobRun["resolved"]
     job["logs"] = [createLogReference(message["status"]["taskId"], jobRun["runId"])]
-    job = addArtifactUploadedLinks(
+    job = await addArtifactUploadedLinks(
         message["status"]["taskId"],
         message["runId"],
         job)
     return job
 
 
-def handleTaskException(pushInfo, task, message):
+async def handleTaskException(pushInfo, task, message):
     jobRun = message["status"]["runs"][message["runId"]]
     # Do not report runs that were created as an exception.  Such cases
     # are deadline-exceeded
@@ -273,8 +275,58 @@ def handleTaskException(pushInfo, task, message):
     # exceptions generally have no logs, so in the interest of not linking to a 404'ing artifact,
     # don't include a link
     job["logs"] = []
-    job = addArtifactUploadedLinks(
+    job = await addArtifactUploadedLinks(
         message["status"]["taskId"],
         message["runId"],
         job)
+    return job
+
+
+async def addArtifactUploadedLinks(taskId, runId, job):
+    res = None
+    try:
+        res = await asyncQueue.listArtifacts(taskId, runId)
+    except Exception:
+        logger.warning("Artifacts could not be found for task: %s run: %s", taskId, runId)
+        return job
+
+    artifacts = res["artifacts"]
+
+    continuationToken = res.get("continuationToken")
+    while continuationToken is not None:
+        continuation = {
+          "continuationToken": res["continuationToken"]
+        }
+
+        try:
+            res = await asyncQueue.listArtifacts(taskId, runId, continuation)
+        except Exception:
+            break
+
+        artifacts = artifacts.concat(res["artifacts"])
+        continuationToken = res.get("continuationToken")
+
+    seen = {}
+    links = []
+    for artifact in artifacts:
+        name = os.path.basename(artifact["name"])
+        if not seen.get(name):
+            seen[name] = [artifact["name"]]
+        else:
+            seen[name].append(artifact["name"])
+            name = "{name} ({length})".format(name=name, length=len(seen[name])-1)
+
+        links.append({
+            "label": "artifact uploaded",
+            "linkText": name,
+            "url": taskcluster_urls.api(
+                root_url,
+                "queue",
+                "v1",
+                "task/{taskId}/runs/{runId}/artifacts/{artifact_name}".format(
+                    taskId=taskId, runId=runId, artifact_name=artifact["name"]
+                )),
+        })
+
+    job["jobInfo"]["links"] = links
     return job
