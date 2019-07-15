@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+import aiohttp
 import requests
 import taskcluster
 import taskcluster.aio
@@ -13,7 +14,11 @@ from treeherder.etl.taskcluster_pulse.handler import (EXCHANGE_EVENT_MAP,
 logger = logging.getLogger(__name__)
 options = {"rootUrl": "https://taskcluster.net"}
 loop = asyncio.get_event_loop()
-session = taskcluster.aio.createSession(loop=loop)
+# Limiting the connection pool just in case we have too many
+conn = aiohttp.TCPConnector(limit=30)
+# Remove default timeout limit of 5 minutes
+timeout = aiohttp.ClientTimeout(total=0)
+session = taskcluster.aio.createSession(loop=loop, connector=conn, timeout=timeout)
 asyncQueue = taskcluster.aio.Queue(options, session=session)
 
 stateToExchange = {}
@@ -23,7 +28,6 @@ for key, value in EXCHANGE_EVENT_MAP.items():
 
 async def handleTask(task):
     taskId = task["task_id"]
-    logger.info("Processing:\t%s", taskId)
     results = await asyncio.gather(asyncQueue.status(taskId), asyncQueue.task(taskId))
     taskStatus = results[0]
     taskDefinition = results[1]
@@ -42,7 +46,7 @@ async def handleTask(task):
         try:
             tc_th_message = await handleMessage(message, taskDefinition)
             if tc_th_message:
-                logger.info("Loading:\t\t%s/%s", taskId, run["runId"])
+                logger.info("Loading into DB:\t%s/%s", taskId, run["runId"])
                 JobLoader().process_job(tc_th_message)
         except Exception as e:
             logger.exception(e)
@@ -52,7 +56,7 @@ async def handleTasks(graph):
     asyncTasks = []
     tasks = list(graph.values())
     logger.info("We have %s tasks to process", len(tasks))
-    for task in tasks[0:50]:
+    for task in tasks:
         asyncTasks.append(asyncio.create_task(handleTask(task)))
 
     await asyncio.gather(*asyncTasks)
