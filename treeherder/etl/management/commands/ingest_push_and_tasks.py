@@ -15,7 +15,7 @@ rootUrl = "https://taskcluster.net"
 options = {"rootUrl": rootUrl}
 loop = asyncio.get_event_loop()
 # Limiting the connection pool just in case we have too many
-conn = aiohttp.TCPConnector(limit=60)
+conn = aiohttp.TCPConnector(limit=10)
 # Remove default timeout limit of 5 minutes
 timeout = aiohttp.ClientTimeout(total=0)
 session = taskcluster.aio.createSession(loop=loop, connector=conn, timeout=timeout)
