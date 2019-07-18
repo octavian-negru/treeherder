@@ -283,14 +283,8 @@ async def handleTaskException(pushInfo, task, message):
     return job
 
 
-async def addArtifactUploadedLinks(taskId, runId, job):
-    res = None
-    try:
-        res = await asyncQueue.listArtifacts(taskId, runId)
-    except Exception:
-        logger.warning("Artifacts could not be found for task: %s run: %s", taskId, runId)
-        return job
-
+async def fetchArtifacts(taskId, runId):
+    res = await asyncQueue.listArtifacts(taskId, runId)
     artifacts = res["artifacts"]
 
     continuationToken = res.get("continuationToken")
@@ -306,6 +300,17 @@ async def addArtifactUploadedLinks(taskId, runId, job):
 
         artifacts = artifacts.concat(res["artifacts"])
         continuationToken = res.get("continuationToken")
+
+    return artifacts
+
+
+async def addArtifactUploadedLinks(taskId, runId, job):
+    artifacts = []
+    try:
+        artifacts = await fetchArtifacts(taskId, runId)
+    except Exception:
+        logger.warning("Artifacts could not be found for task: %s run: %s", taskId, runId)
+        return job
 
     seen = {}
     links = []
