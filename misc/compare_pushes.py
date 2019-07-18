@@ -11,6 +11,7 @@ from thclient import TreeherderClient
 logging.basicConfig()
 logger = logging.getLogger(__name__).setLevel(logging.DEBUG)
 
+
 def remove_some_attributes(job, remote_job):
     # I belive these differences are expected since they are dependant to when the data
     # was inserted inside of the database
@@ -72,7 +73,7 @@ if __name__ == "__main__":
             # You can use this value in a url with &selectedJob=
             jobId = job["id"]
             remove_some_attributes(job, remote_job)
-            
+
             differences = DeepDiff(job, remote_dict[job["job_guid"]])
             if differences:
                 pprint.pprint(differences)
@@ -87,12 +88,12 @@ if __name__ == "__main__":
     if remote_dict:
         print("There are the first 10 remote jobs we do not have locally. Follow the link to investigate.")
         for job in list(remote_dict.values())[0:10]:
-            print_url_to_taskcluster(job_guid)
+            print_url_to_taskcluster(job["job_guid"])
 
     if local_not_found:
         print("Number of jobs not found locally: {} jobs".format(len(local_not_found)))
         for job in local_not_found:
-            print_url_to_taskcluster(job_guid)
+            print_url_to_taskcluster(job["job_guid"])
 
     if not (remote_dict and local_not_found):
         print("We have not found any differences between the two pushes!! :D")
