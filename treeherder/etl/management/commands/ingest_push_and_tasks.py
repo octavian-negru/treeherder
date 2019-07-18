@@ -49,11 +49,12 @@ async def handleTask(task):
             }
         }
         try:
-            tc_th_message = await handleMessage(message, task["task"])
-            if tc_th_message:
-                logger.info("Loading into DB:\t%s/%s", taskId, run["runId"])
-                # XXX: This seems our current bottleneck
-                JobLoader().process_job(tc_th_message)
+            taskRuns = await handleMessage(message, task["task"])
+            if taskRuns:
+                for run in taskRuns:
+                    logger.info("Loading into DB:\t%s/%s", taskId, run["runId"])
+                    # XXX: This seems our current bottleneck
+                    JobLoader().process_job(run)
         except Exception as e:
             logger.exception(e)
 

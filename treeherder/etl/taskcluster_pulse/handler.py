@@ -108,6 +108,7 @@ def validateTask(task):
 # for the type of message received.
 # Only messages that contain the properly formatted routing key and contains
 # treeherder job information in task.extra.treeherder are accepted
+# This will generate a list of messages that need to be ingested by Treeherder
 async def handleMessage(message, taskDefinition=None):
     taskId = message["payload"]["status"]["taskId"]
     task = (await asyncQueue.task(taskId)) if not taskDefinition else taskDefinition
@@ -123,7 +124,7 @@ async def handleMessage(message, taskDefinition=None):
         return None
 
     taskType = EXCHANGE_EVENT_MAP.get(message["exchange"])
-    job = None
+    jobs = []
 
     if not taskType:
         raise Exception("Unknown exchange: {exchange}".format(exchange=message["exchange"]))
@@ -132,17 +133,17 @@ async def handleMessage(message, taskDefinition=None):
         # If the task run was created for an infrastructure rerun, then resolve
         # the previous run as retried.
         if runId > 0:
-            await handleTaskRerun(parsedRoute, task, message["payload"])
+            jobs.append(await handleTaskRerun(parsedRoute, task, message["payload"]))
 
-        job = handleTaskPending(parsedRoute, task, message["payload"])
+        jobs.append(handleTaskPending(parsedRoute, task, message["payload"]))
     elif taskType == "running":
-        job = handleTaskRunning(parsedRoute, task, message["payload"])
+        jobs.append(handleTaskRunning(parsedRoute, task, message["payload"]))
     elif taskType in ("completed", "failed"):
-        job = await handleTaskCompleted(parsedRoute, task, message["payload"])
+        jobs.append(await handleTaskCompleted(parsedRoute, task, message["payload"]))
     elif taskType == "exception":
-        job = await handleTaskException(parsedRoute, task, message["payload"])
+        jobs.append(await handleTaskException(parsedRoute, task, message["payload"]))
 
-    return job
+    return jobs
 
 
 # Builds the basic Treeherder job message that's universal for all

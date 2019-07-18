@@ -44,14 +44,14 @@ class Command(BaseCommand):
                 for message in consumer.messages:
                     taskId = message["payload"]["status"]["taskId"]
                     task = fetchTask(taskId)
-                    tc_th_message = handleMessage(message, task)
-                    if tc_th_message:
+                    runs = handleMessage(message, task)
+                    for run in runs:
                         try:
-                            th_jobs[taskId] = jl.transform(tc_th_message)
+                            th_jobs[taskId] = jl.transform(run)
                             tc_messages[taskId] = message
                             tc_tasks[taskId] = task
                         except Exception:
-                            logger.info('Issue validating this message: %s', tc_th_message)
+                            logger.info('Issue validating this message: %s', run)
                 logger.info("Updating Taskcluster jobs: %s entries", len(tc_messages))
                 with open(os.path.join(tests_path, 'taskcluster_pulse_messages.json'), 'w') as fh:
                     # Write new line at the end to satisfy prettier

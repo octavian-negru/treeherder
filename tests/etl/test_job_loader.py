@@ -60,13 +60,13 @@ def new_pulse_jobs(sample_data, test_repository, push_stored):
         taskId = message["payload"]["status"]["taskId"]
         task = tasks[taskId]
         # If we pass task to handleMessage we won't hit the network
-        tc_th_message = handleMessage(message, task)
-        # handleMessage returns None when it is a task that is not meant for Treeherder
-        if tc_th_message:
-            mock_artifact(taskId, tc_th_message["runId"], "public/logs/live_backing.log")
-            tc_th_message["origin"]["project"] = test_repository.name
-            tc_th_message["origin"]["revision"] = revision
-            jobs.append(tc_th_message)
+        taskRuns = handleMessage(message, task)
+        # handleMessage returns [] when it is a task that is not meant for Treeherder
+        for run in taskRuns:
+            mock_artifact(taskId, run["runId"], "public/logs/live_backing.log")
+            run["origin"]["project"] = test_repository.name
+            run["origin"]["revision"] = revision
+            jobs.append(run)
     return jobs
 
 
