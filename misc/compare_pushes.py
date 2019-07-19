@@ -95,5 +95,5 @@ if __name__ == "__main__":
         for job in local_not_found:
             print_url_to_taskcluster(job["job_guid"])
 
-    if not (remote_dict and local_not_found):
+    if remote_dict is None and local_not_found is None:
         print("We have not found any differences between the two pushes!! :D")
