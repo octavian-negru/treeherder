@@ -129,10 +129,10 @@ async def handleMessage(message, taskDefinition=None):
     if not taskType:
         raise Exception("Unknown exchange: {exchange}".format(exchange=message["exchange"]))
     elif taskType == "pending":
-        runId = message["payload"]["runId"]
-        # If the task run was created for an infrastructure rerun, then resolve
-        # the previous run as retried.
-        if runId > 0:
+        # If the pending job is an automatic rerun we mark the previous run as "retry"
+        # This only works because we get the pending Pulse message before we get the message
+        # for the previous run which has not yet been marked as completed
+        if message["payload"]["runId"] > 0:
             jobs.append(await handleTaskRerun(parsedRoute, task, message["payload"]))
 
         jobs.append(handleTaskPending(parsedRoute, task, message["payload"]))

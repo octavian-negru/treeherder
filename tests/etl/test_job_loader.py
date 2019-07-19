@@ -62,7 +62,7 @@ def new_pulse_jobs(sample_data, test_repository, push_stored):
         # If we pass task to handleMessage we won't hit the network
         taskRuns = handleMessage(message, task)
         # handleMessage returns [] when it is a task that is not meant for Treeherder
-        for run in taskRuns:
+        for run in reversed(taskRuns):
             mock_artifact(taskId, run["runId"], "public/logs/live_backing.log")
             run["origin"]["project"] = test_repository.name
             run["origin"]["revision"] = revision

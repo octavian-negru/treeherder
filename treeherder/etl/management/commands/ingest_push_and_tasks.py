@@ -37,7 +37,9 @@ async def handleTaskId(taskId):
 async def handleTask(task):
     taskId = task["status"]["taskId"]
     runs = task["status"]["runs"]
-    for run in runs:
+    # If we iterate in order of the runs, we will not be able to mark older runs as
+    # "retry" instead of exception
+    for run in reversed(runs):
         message = {
             "exchange": stateToExchange[run["state"]],
             "payload": {
