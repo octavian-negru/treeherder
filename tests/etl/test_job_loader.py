@@ -49,7 +49,7 @@ def mock_artifact(taskId, runId, artifactName):
 
 
 @pytest.fixture
-def new_pulse_jobs(sample_data, test_repository, push_stored):
+async def new_pulse_jobs(sample_data, test_repository, push_stored):
     revision = push_stored[0]["revisions"][0]["revision"]
     pulseMessages = copy.deepcopy(sample_data.taskcluster_pulse_messages)
     tasks = copy.deepcopy(sample_data.taskcluster_tasks)
@@ -60,7 +60,7 @@ def new_pulse_jobs(sample_data, test_repository, push_stored):
         taskId = message["payload"]["status"]["taskId"]
         task = tasks[taskId]
         # If we pass task to handleMessage we won't hit the network
-        taskRuns = handleMessage(message, task)
+        taskRuns = await handleMessage(message, task)
         # handleMessage returns [] when it is a task that is not meant for Treeherder
         for run in reversed(taskRuns):
             mock_artifact(taskId, run["runId"], "public/logs/live_backing.log")
