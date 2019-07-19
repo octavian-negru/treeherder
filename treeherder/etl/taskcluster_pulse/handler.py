@@ -126,15 +126,17 @@ async def handleMessage(message, taskDefinition=None):
     taskType = EXCHANGE_EVENT_MAP.get(message["exchange"])
     jobs = []
 
+    # Originally this code was only within the "pending" case, however, in order to support
+    # ingesting all tasks at once which might not have "pending" case
+    # If the job is an automatic rerun we mark the previous run as "retry"
+    # This will only work if the previous run has not yet been processed by Treeherder
+    # since _remove_existing_jobs() will prevent it
+    if message["payload"]["runId"] > 0:
+        jobs.append(await handleTaskRerun(parsedRoute, task, message["payload"]))
+
     if not taskType:
         raise Exception("Unknown exchange: {exchange}".format(exchange=message["exchange"]))
     elif taskType == "pending":
-        # If the pending job is an automatic rerun we mark the previous run as "retry"
-        # This only works because we get the pending Pulse message before we get the message
-        # for the previous run which has not yet been marked as completed
-        if message["payload"]["runId"] > 0:
-            jobs.append(await handleTaskRerun(parsedRoute, task, message["payload"]))
-
         jobs.append(handleTaskPending(parsedRoute, task, message["payload"]))
     elif taskType == "running":
         jobs.append(handleTaskRunning(parsedRoute, task, message["payload"]))
