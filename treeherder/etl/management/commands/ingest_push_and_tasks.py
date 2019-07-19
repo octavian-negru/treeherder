@@ -4,11 +4,14 @@ import logging
 import aiohttp
 import taskcluster
 import taskcluster.aio
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from treeherder.etl.job_loader import JobLoader
+from treeherder.etl.pushlog import HgPushlogProcess
 from treeherder.etl.taskcluster_pulse.handler import (EXCHANGE_EVENT_MAP,
                                                       handleMessage)
+from treeherder.model.models import Repository
 
 logger = logging.getLogger(__name__)
 rootUrl = "https://taskcluster.net"
@@ -97,9 +100,9 @@ class Command(BaseCommand):
             help="repository to query"
         )
         parser.add_argument(
-            "--revision",
+            "--changeset",
             nargs="?",
-            help="revision to import"
+            help="changeset to import"
         )
         parser.add_argument(
             "--task-id",
@@ -113,10 +116,27 @@ class Command(BaseCommand):
         if taskId:
             loop.run_until_complete(handleTaskId(taskId))
         else:
-            # project = options["project"]
-            # revision = options["revision"]
+            project = options["project"]
+            changeset = options["changeset"]
+
+            # get reference to repo
+            repo = Repository.objects.get(name=project, active_status='active')
+            fetch_push_id = None
+
+            # make sure all tasks are run synchronously / immediately
+            settings.CELERY_TASK_ALWAYS_EAGER = True
+
+            # get hg pushlog
+            pushlog_url = '%s/json-pushes/?full=1&version=2' % repo.url
+
+            # ingest this particular revision for this project
+            process = HgPushlogProcess()
+            # Use the actual push SHA, in case the changeset specified was a tag
+            # or branch name (eg tip). HgPushlogProcess returns the full SHA.
+            process.run(pushlog_url, project, changeset=changeset, last_push_id=fetch_push_id)
+
             # XXX: Need logic to get from project/revision to taskGroupId
-            taskGroupId = 'cb3srnG9QJC5iq5f8m55Rw'
+            taskGroupId = 'ZYnMSfwCS5Cc_Wi_e-ZlSA'
             logger.info("## START ##")
             loop.run_until_complete(processTasks(taskGroupId))
             logger.info("## END ##")

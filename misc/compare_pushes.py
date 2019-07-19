@@ -51,13 +51,13 @@ def print_url_to_taskcluster(job_guid):
 
 if __name__ == "__main__":
     # XXX: This script should take arguments instead being hardcoded
-    # http://localhost:5000/#/jobs?repo=mozilla-central&revision=e596664275d5e3e2fdcb7fa8d1447289f99269c3
+    # http://localhost:5000/#/jobs?repo=mozilla-central&revision=eb7f4d56f54b3283fc15983ee859b5e62fcb9f3b
     local = TreeherderClient(server_url="http://localhost:8000")
-    local_jobs = local.get_jobs("mozilla-central", push_id=4447, count=None)
+    local_jobs = local.get_jobs("mozilla-central", push_id=8717, count=None)
 
-    # https://treeherder.mozilla.org/#/jobs?repo=mozilla-central&revision=e596664275d5e3e2fdcb7fa8d1447289f99269c3
+    # https://treeherder.mozilla.org/#/jobs?repo=mozilla-central&revision=eb7f4d56f54b3283fc15983ee859b5e62fcb9f3b
     remote = TreeherderClient("https://treeherder.mozilla.org")
-    remote_jobs = remote.get_jobs("mozilla-central", push_id=508094, count=None)
+    remote_jobs = remote.get_jobs("mozilla-central", push_id=516192, count=None)
 
     remote_dict = {}
     for job in remote_jobs:
