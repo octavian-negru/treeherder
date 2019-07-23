@@ -236,9 +236,9 @@ graphene-django==2.3.2 \
     --hash=sha256:f155cfbd9d201604c3f681ef6b824cc693263946cfdf9ba140880994285016d4
 
 # Used by graphene-django
-graphene==2.1.6 \
-    --hash=sha256:2ac16d6bb3bdba4da3daa0f6d15b74ac585ed6a016980f502c77c3e687c763bb \
-    --hash=sha256:fcbcb24ee960b2c768de4285fbd025aa98eed4ecb6a679bbd41985b05b4008c5
+graphene==2.1.7 \
+    --hash=sha256:acf808d50d053b94f7958414d511489a9e490a7f9563b9be80f6875fc5723d2a \
+    --hash=sha256:77d61618132ccd084c343e64c22d806cee18dce73cc86e0f427378dbdeeac287
 graphql-core==2.2 \
     --hash=sha256:6288fe97c32d2f868a2dfe62e766dc85d48c96c1d085294edf44714190f2e4f3 \
     --hash=sha256:60ef8277b82aaad49e87154a0288a9542a82a63909568375712f826b1c280ef5
